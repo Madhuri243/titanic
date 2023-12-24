@@ -1,0 +1,149 @@
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+train_df = pd.read_csv("/kaggle/input/titanic/train.csv")
+test_df = pd.read_csv("/kaggle/input/titanic/test.csv")
+print(train_df.shape)
+print(test_df.shape)
+drop_columns = ['PassengerId', 'Name', 'Ticket']
+
+#train_df = train_df.drop(drop_columns, axis=1)
+#test_df = test_df.drop(drop_columns, axis=1)
+
+#Sex
+train_df['Sex'] = train_df['Sex'].map({'male':0, 'female':1})
+train_df['Embarked'] = train_df['Embarked'].map({'S':0, 'C':1, 'Q':2})
+test_df['Sex'] = test_df['Sex'].map({'male':0, 'female':1})
+test_df['Embarked'] = test_df['Embarked'].map({'S':0, 'C':1, 'Q':2})
+def deck_to_number(deck):
+    if pd.isna(deck):
+        return np.nan
+    return ord(deck.upper()) - ord('A')+1
+
+
+def extract_cabin_number(cabin_nr):
+    if pd.isna(cabin_nr):
+        return np.nan 
+    return ''.join(filter(str.isdigit, cabin_nr))
+drop_columns = ['PassengerId', 'Name', 'Ticket']
+
+train_df = train_df.drop(drop_columns, axis=1)
+test_df = test_df.drop(drop_columns, axis=1)
+train_df['cabin_deck'] = train_df['Cabin'].str[0].apply(deck_to_number)
+train_df['cabin_number'] = train_df['Cabin'].apply(extract_cabin_number)
+test_df['cabin_deck'] = test_df['Cabin'].str[0].apply(deck_to_number)
+test_df['cabin_number'] = test_df['Cabin'].apply(extract_cabin_number)
+train_df = train_df.drop('Cabin',axis=1)
+test_df = test_df.drop('Cabin',axis=1)
+from sklearn.impute import SimpleImputer
+
+imputer = SimpleImputer(strategy="most_frequent")
+train_df[['Age', 'cabin_deck', 'cabin_number', 'Embarked','Fare']] = pd.DataFrame(imputer.fit_transform(train_df[['Age', 'cabin_deck', 'cabin_number', 'Embarked', 'Fare']]))
+train_df['cabin_number']=train_df['cabin_number'].replace("",0)
+test_df[['Age', 'cabin_deck', 'cabin_number', 'Embarked', 'Fare']] = pd.DataFrame(imputer.fit_transform(test_df[['Age', 'cabin_deck', 'cabin_number', 'Embarked', 'Fare']]))
+test_df['cabin_number']=test_df['cabin_number'].replace("",0)
+#missing_values = train_df.isnull().sum()
+missing_values = train_df.isnull().sum()
+print(missing_values)
+train_df=train_df.dropna(axis=1)
+test_df=test_df.dropna(axis=1)
+print(train_df.shape)
+print(test_df.shape)
+
+missing_values = train_df.isnull().sum()
+print(missing_values)
+
+
+train_df['cabin_deck'] = train_df['cabin_deck'].astype(int)
+train_df['cabin_number'] = train_df['cabin_number'].astype(int)
+train_df['Age']=train_df['Age'].astype(int)
+train_df['Embarked']=train_df['Embarked'].astype(int)
+train_df['Fare']=train_df['Fare'].astype(float)
+
+test_df['cabin_deck'] = test_df['cabin_deck'].astype(int)
+test_df['cabin_number'] = test_df['cabin_number'].astype(int)
+train_df=train_df.dropna(axis=1)
+test_df=test_df.dropna(axis=1)
+print(train_df.shape)
+print(test_df.shape)
+
+missing_values = train_df.isnull().sum()
+print(missing_values)
+
+
+train_df['cabin_deck'] = train_df['cabin_deck'].astype(int)
+train_df['cabin_number'] = train_df['cabin_number'].astype(int)
+train_df['Age']=train_df['Age'].astype(int)
+train_df['Embarked']=train_df['Embarked'].astype(int)
+train_df['Fare']=train_df['Fare'].astype(float)
+
+test_df['cabin_deck'] = test_df['cabin_deck'].astype(int)
+test_df['cabin_number'] = test_df['cabin_number'].astype(int)
+from sklearn.model_selection import train_test_split
+labels = train_df['Survived']
+train_df = train_df.drop('Survived', axis=1)
+x_train, x_test, y_train, y_test = train_test_split(train_df, labels, test_size=0.2, random_state=42)
+#model selection
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from xgboost import XGBClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score, GridSearchCV, RandomizedSearchCV
+from sklearn.metrics import accuracy_score
+models = {'Logreg': LogisticRegression(),
+         'DecisionTree': DecisionTreeClassifier(),
+         'RandomForest': RandomForestClassifier(),
+         'AdaBoost': AdaBoostClassifier(),
+          'GradientBoost': GradientBoostingClassifier(),
+          'LinearSVC': LinearSVC(max_iter=1500),
+         'XGBc': XGBClassifier(),
+          'KNN': KNeighborsClassifier(n_neighbors=3),
+         }
+
+temp1, temp2 = [], []
+for i in models.keys():
+    model = models[i]
+    model.fit(x_train, y_train)
+    temp1.append(model.score(x_train, y_train))
+    temp2.append(cross_val_score(model, x_train,y_train).mean())
+pd.DataFrame({'Models': models.keys(), 'Training Score':temp1, 'Cross val Score': temp2})param_grid = [{
+    'n_estimators': [100, 200, 300],
+    'max_features': [None, "sqrt", "log2"],
+    'max_depth': [3,5,7,10,12],
+    'min_samples_split': [10, 20],
+    'min_samples_leaf': [5],
+}]
+
+forest = RandomForestClassifier()
+grid_search = GridSearchCV(forest, param_grid, cv=5, verbose=1, n_jobs=-1)
+grid_search.fit(x_train, y_train)
+grid_search.best_params_
+forest = RandomForestClassifier(n_estimators=200, min_samples_split=10, min_samples_leaf=5, max_features=None, max_depth=7, bootstrap=True)
+cv = cross_val_score(forest, x_train, y_train, cv=5)
+print(cv, '\nmean:', cv.mean())
+rfc = RandomForestClassifier(**grid_search.best_params_)
+rfc.fit(train_df, labels)
+pred = rfc.predict(test_df)
+test = pd.read_csv("/kaggle/input/titanic/test.csv")
+submission = pd.DataFrame({'PassengerId':test['PassengerId'], 'Survived': pred})
+submission.to_csv('submission.csv', index=False)
+pd.read_csv('submission.csv')
+forest = RandomForestClassifier(n_estimators=200, min_samples_split=10, min_samples_leaf=5, max_features=None, max_depth=7, bootstrap=True)
+cv = cross_val_score(forest, x_train, y_train, cv=5)
+print(cv, '\nmean:', cv.mean())
+rfc = RandomForestClassifier(**grid_search.best_params_)
+rfc.fit(train_df, labels)
+pred = rfc.predict(test_df)
+test = pd.read_csv("/kaggle/input/titanic/test.csv")
+submission = pd.DataFrame({'PassengerId':test['PassengerId'], 'Survived': pred})
+submission.to_csv('submission.csv', index=False)
+pd.read_csv('submission.csv')
